@@ -237,14 +237,20 @@ function cmdLogin() {
           res.end('寫入設定檔失敗：' + err.message);
           return;
         }
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        // Connection: close 讓瀏覽器不要保持 keep-alive 連線，
+        // 否則 server.close() 會一直等不到連線排空。
+        res.writeHead(200, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Connection': 'close',
+        });
         res.end(successPage());
         settled = true;
         console.log(`\n設定完成，已寫入：${CONFIG_PATH}`);
-        // 讓回應送達瀏覽器後再關閉
-        setTimeout(() => {
-          server.close(() => process.exit(0));
-        }, 300);
+        // 停止接受新連線，並在回應送達後「直接」結束 process。
+        // 不依賴 server.close() 的 callback——瀏覽器的 keep-alive 連線會讓該
+        // callback 遲遲不觸發，導致 process 永遠掛著（先前的 bug）。
+        server.close();
+        setTimeout(() => process.exit(0), 300).unref();
       });
       return;
     }
